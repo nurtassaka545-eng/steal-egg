@@ -8,17 +8,10 @@ local UserInputService = game:GetService("UserInputService")
 local LP = Players.LocalPlayer
 
 local CONFIG = {
-    EggESP = true,
-    PlayerESP = false,
-    BestEggESP = true,
-    AutoSteal = false,
-    SpeedHack = false,
-    AutoGrab = false,
-    AntiBan = true,
-    Rainbow = true,
-    FlySpeed = 50,
-    SpeedHackSpeed = 120,
-    GrabDelay = 0.5,
+    EggESP = true, PlayerESP = false, BestEggESP = true,
+    AutoSteal = false, SpeedHack = false, AutoGrab = false,
+    AntiBan = true, Rainbow = true,
+    FlySpeed = 50, SpeedHackSpeed = 120, GrabDelay = 0.5,
 }
 
 local RARITY = {
@@ -27,33 +20,20 @@ local RARITY = {
     Eternal = 9, Divine = 10,
 }
 
--- ============================================
--- RAINBOW
--- ============================================
 local hue = 0
 local function getRainbow()
     hue = (hue + 0.005) % 1
     return Color3.fromHSV(hue, 0.7, 1)
 end
 
--- ============================================
--- ANTI-BAN
--- ============================================
-local function antiBanInit()
-    if not CONFIG.AntiBan then return end
+pcall(function()
     local env = getfenv and getfenv(0) or _G
     if env then
-        pcall(function()
-            env.getgenv = nil; env.getreg = nil; env.getgc = nil
-            env.getupvalue = nil; env.getupvalues = nil
-        end)
+        env.getgenv = nil; env.getreg = nil; env.getgc = nil
+        env.getupvalue = nil; env.getupvalues = nil
     end
-end
-antiBanInit()
+end)
 
--- ============================================
--- BEST EGG
--- ============================================
 local function getBestEgg()
     local best, bestScore = nil, 0
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -69,62 +49,30 @@ local function getBestEgg()
     return best, bestScore
 end
 
--- ============================================
--- ESP CACHE
--- ============================================
 local espCache = {}
-
-local function clearESP()
-    for part, guis in pairs(espCache) do
-        for _, g in ipairs(guis) do
-            pcall(function() g:Destroy() end)
-        end
-    end
-    espCache = {}
-end
-
 local function createESP(part, color, label)
-    if espCache[part] then
-        espCache[part][1].Color3 = color
-        return
-    end
+    if espCache[part] then espCache[part][1].Color3 = color; return end
     local box = Instance.new("SelectionBox")
-    box.Adornee = part
-    box.Parent = part
-    box.Color3 = color
-    box.LineThickness = 0.08
-    box.Transparency = 0.4
+    box.Adornee = part; box.Parent = part
+    box.Color3 = color; box.LineThickness = 0.08; box.Transparency = 0.4
     local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 200, 0, 50)
-    bb.StudsOffset = Vector3.new(0, 3, 0)
-    bb.AlwaysOnTop = true
-    bb.Parent = part
+    bb.Size = UDim2.new(0, 200, 0, 50); bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true; bb.Parent = part
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = label
-    lbl.TextColor3 = color
-    lbl.TextStrokeTransparency = 0
-    lbl.TextScaled = true
-    lbl.Parent = bb
+    lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1
+    lbl.Text = label; lbl.TextColor3 = color; lbl.TextStrokeTransparency = 0
+    lbl.TextScaled = true; lbl.Parent = bb
     espCache[part] = { box, bb }
 end
 
--- ============================================
--- ESP UPDATE
--- ============================================
 local function updateESP()
-    -- cleanup destroyed
     for part, guis in pairs(espCache) do
         if not part.Parent then
             for _, g in ipairs(guis) do pcall(function() g:Destroy() end) end
             espCache[part] = nil
         end
     end
-
     local bestEgg = CONFIG.BestEggESP and getBestEgg() or nil
-
-    -- Egg ESP / Best Egg ESP
     if CONFIG.EggESP or CONFIG.BestEggESP then
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("BasePart") and obj.Name:lower():find("egg") then
@@ -136,95 +84,24 @@ local function updateESP()
             end
         end
     end
-
-    -- Player ESP
     if CONFIG.PlayerESP then
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then
                 local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                local head = plr.Character:FindFirstChild("Head")
-                if hrp then
-                    createESP(hrp, Color3.fromRGB(255, 255, 50), plr.Name)
-                end
+                if hrp then createESP(hrp, Color3.fromRGB(255, 255, 50), plr.Name) end
             end
         end
     end
 end
 
--- ============================================
--- FLY SYSTEM
--- ============================================
-local flyEnabled = false
-local flyBV, flyBG
-
-local function startFly()
-    local char = LP.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then hum.PlatformStand = true end
-
-    flyBV = Instance.new("BodyVelocity")
-    flyBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    flyBV.Velocity = Vector3.zero
-    flyBV.Parent = hrp
-
-    flyBG = Instance.new("BodyGyro")
-    flyBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    flyBG.P = 1000
-    flyBG.D = 50
-    flyBG.Parent = hrp
-
-    flyEnabled = true
-    task.spawn(function()
-        while flyEnabled and hrp.Parent do
-            local speed = CONFIG.SpeedHack and CONFIG.SpeedHackSpeed or CONFIG.FlySpeed
-            local cam = workspace.CurrentCamera
-            local move = Vector3.zero
-
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
-
-            if move.Magnitude > 0 then
-                flyBV.Velocity = move.Unit * speed
-            else
-                flyBV.Velocity = Vector3.zero
-            end
-            flyBG.CFrame = cam.CFrame
-            task.wait()
-        end
-    end)
-end
-
-local function stopFly()
-    flyEnabled = false
-    if flyBV then flyBV:Destroy() end
-    if flyBG then flyBG:Destroy() end
-    local char = LP.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.PlatformStand = false end
-    end
-end
-
--- ============================================
--- FLY TO TARGET (used by AutoSteal / AutoGrab)
--- ============================================
 local function flyToPosition(pos, speed)
     local char = LP.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bv.Parent = hrp
-
     local distance
     repeat
         if not hrp.Parent then bv:Destroy(); return end
@@ -233,115 +110,67 @@ local function flyToPosition(pos, speed)
         bv.Velocity = diff.Unit * math.min(speed, distance * 4)
         task.wait()
     until distance < 4
-
     bv:Destroy()
 end
 
--- ============================================
--- AUTO STEAL (fly to best egg)
--- ============================================
+local function getSpeed()
+    return CONFIG.SpeedHack and CONFIG.SpeedHackSpeed or CONFIG.FlySpeed
+end
+
 local stealing = false
 local function autoSteal()
     if not CONFIG.AutoSteal or stealing then return end
     stealing = true
-
     local egg = getBestEgg()
     if not egg then stealing = false; return end
-
-    local speed = CONFIG.SpeedHack and CONFIG.SpeedHackSpeed or CONFIG.FlySpeed
-
-    -- Fly to egg
-    flyToPosition(egg.Position, speed)
+    flyToPosition(egg.Position, getSpeed())
     task.wait(0.15)
-
-    -- Activate prompts
     for _, prompt in ipairs(egg:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             pcall(function()
-                prompt:InputHoldBegin()
-                task.wait(0.1)
-                prompt:InputHoldEnd()
+                prompt:InputHoldBegin(); task.wait(0.1); prompt:InputHoldEnd()
             end)
         end
     end
-
     task.wait(CONFIG.GrabDelay)
-
-    -- Fly back to base
     local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
-    if spawn then
-        flyToPosition(spawn.Position + Vector3.new(0, 5, 0), speed)
-    end
-
+    if spawn then flyToPosition(spawn.Position + Vector3.new(0, 5, 0), getSpeed()) end
     task.wait(0.3)
     stealing = false
 end
 
--- ============================================
--- AUTO GRAB (0.5s instant grab + fly back)
--- ============================================
 local grabbing = false
 local function autoGrab()
     if not CONFIG.AutoGrab or grabbing then return end
     grabbing = true
-
     local egg = getBestEgg()
     if not egg then grabbing = false; return end
-
-    local speed = CONFIG.SpeedHack and CONFIG.SpeedHackSpeed or CONFIG.FlySpeed
-
-    -- Fly FAST to egg
-    flyToPosition(egg.Position, speed * 1.5)
-
-    -- Instant activate all prompts
+    flyToPosition(egg.Position, getSpeed() * 1.5)
     for _, prompt in ipairs(egg:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             pcall(function()
-                prompt:InputHoldBegin()
-                task.wait(0.05)
-                prompt:InputHoldEnd()
+                prompt:InputHoldBegin(); task.wait(0.05); prompt:InputHoldEnd()
             end)
         end
     end
-
-    -- Instant fly back (0.5s total)
     task.wait(0.1)
     local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
-    if spawn then
-        flyToPosition(spawn.Position + Vector3.new(0, 5, 0), speed * 2)
-    end
-
+    if spawn then flyToPosition(spawn.Position + Vector3.new(0, 5, 0), getSpeed() * 2) end
     task.wait(0.1)
     grabbing = false
 end
 
--- ============================================
--- MAIN LOOPS
--- ============================================
 task.spawn(function()
-    while true do
-        task.wait(0.1)
-        pcall(updateESP)
-    end
+    while true do task.wait(0.1); pcall(updateESP) end
+end)
+task.spawn(function()
+    while true do task.wait(0.2); if CONFIG.AutoSteal then pcall(autoSteal) end end
+end)
+task.spawn(function()
+    while true do task.wait(0.1); if CONFIG.AutoGrab then pcall(autoGrab) end end
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if CONFIG.AutoSteal then pcall(autoSteal) end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if CONFIG.AutoGrab then pcall(autoGrab) end
-    end
-end)
-
--- ============================================
--- UI — MODERN + RAINBOW + SUBMENU
--- ============================================
+-- UI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "StealAEgg_v4"
 ScreenGui.ResetOnSpawn = false
@@ -355,10 +184,7 @@ Main.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
 Main.Parent = ScreenGui
-
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = Main
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 
 local Stroke = Instance.new("UIStroke")
 Stroke.Thickness = 2
@@ -366,16 +192,12 @@ Stroke.Color = Color3.fromRGB(255, 100, 200)
 Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 Stroke.Parent = Main
 
--- Title bar
 local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 42)
 TitleBar.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = Main
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
-TitleCorner.Parent = TitleBar
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
 
 local TitleFix = Instance.new("Frame")
 TitleFix.Size = UDim2.new(1, 0, 0, 12)
@@ -388,7 +210,7 @@ local TitleText = Instance.new("TextLabel")
 TitleText.Size = UDim2.new(1, -80, 1, 0)
 TitleText.Position = UDim2.new(0, 16, 0, 0)
 TitleText.BackgroundTransparency = 1
-TitleText.Text = "Steal a Egg"
+TitleText.Text = "Steal a Egg v4"
 TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleText.TextSize = 18
 TitleText.Font = Enum.Font.GothamBold
@@ -419,7 +241,6 @@ CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = TitleBar
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 
--- Content scroll
 local Content = Instance.new("ScrollingFrame")
 Content.Size = UDim2.new(1, -24, 1, -56)
 Content.Position = UDim2.new(0, 12, 0, 48)
@@ -431,193 +252,194 @@ Content.CanvasSize = UDim2.new(0, 0, 0, 0)
 Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Content.Parent = Main
 
--- layout
 local Layout = Instance.new("UIListLayout")
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
 Layout.Padding = UDim.new(0, 6)
 Layout.Parent = Content
 
--- ============================================
--- TOGGLE FACTORY
--- ============================================
-local function makeToggle(parent, text, key, desc)
+local function makeToggle(text, key, desc)
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, -8, 0, 46)
     Btn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-    Btn.Text = ""
-    Btn.BorderSizePixel = 0
-    Btn.AutoButtonColor = false
-    Btn.Parent = parent
-
+    Btn.Text = ""; Btn.BorderSizePixel = 0; Btn.AutoButtonColor = false
+    Btn.Parent = Content
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
-
-    local Indicator = Instance.new("Frame")
-    Indicator.Size = UDim2.new(0, 4, 0.6, 0)
-    Indicator.Position = UDim2.new(0, 0, 0.2, 0)
-    Indicator.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(80, 80, 100)
-    Indicator.BorderSizePixel = 0
-    Indicator.Parent = Btn
-    Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
-
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -80, 0, 20)
-    Label.Position = UDim2.new(0, 16, 0, 6)
-    Label.BackgroundTransparency = 1
-    Label.Text = text
-    Label.TextColor3 = Color3.fromRGB(240, 240, 250)
-    Label.TextSize = 14
-    Label.Font = Enum.Font.GothamMedium
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Btn
-
+    local Ind = Instance.new("Frame")
+    Ind.Size = UDim2.new(0, 4, 0.6, 0); Ind.Position = UDim2.new(0, 0, 0.2, 0)
+    Ind.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(80, 80, 100)
+    Ind.BorderSizePixel = 0; Ind.Parent = Btn
+    Instance.new("UICorner", Ind).CornerRadius = UDim.new(1, 0)
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -80, 0, 20); L.Position = UDim2.new(0, 16, 0, 6)
+    L.BackgroundTransparency = 1; L.Text = text
+    L.TextColor3 = Color3.fromRGB(240, 240, 250); L.TextSize = 14
+    L.Font = Enum.Font.GothamMedium; L.TextXAlignment = Enum.TextXAlignment.Left
+    L.Parent = Btn
     if desc then
         local D = Instance.new("TextLabel")
-        D.Size = UDim2.new(1, -80, 0, 14)
-        D.Position = UDim2.new(0, 16, 0, 26)
-        D.BackgroundTransparency = 1
-        D.Text = desc
-        D.TextColor3 = Color3.fromRGB(110, 110, 130)
-        D.TextSize = 10
-        D.Font = Enum.Font.Gotham
-        D.TextXAlignment = Enum.TextXAlignment.Left
+        D.Size = UDim2.new(1, -80, 0, 14); D.Position = UDim2.new(0, 16, 0, 26)
+        D.BackgroundTransparency = 1; D.Text = desc
+        D.TextColor3 = Color3.fromRGB(110, 110, 130); D.TextSize = 10
+        D.Font = Enum.Font.Gotham; D.TextXAlignment = Enum.TextXAlignment.Left
         D.Parent = Btn
     end
-
-    local Switch = Instance.new("Frame")
-    Switch.Size = UDim2.new(0, 34, 0, 18)
-    Switch.Position = UDim2.new(1, -46, 0.5, -9)
-    Switch.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(50, 50, 65)
-    Switch.BorderSizePixel = 0
-    Switch.Parent = Btn
-    Instance.new("UICorner", Switch).CornerRadius = UDim.new(1, 0)
-
+    local Sw = Instance.new("Frame")
+    Sw.Size = UDim2.new(0, 34, 0, 18); Sw.Position = UDim2.new(1, -46, 0.5, -9)
+    Sw.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(50, 50, 65)
+    Sw.BorderSizePixel = 0; Sw.Parent = Btn
+    Instance.new("UICorner", Sw).CornerRadius = UDim.new(1, 0)
     local Dot = Instance.new("Frame")
     Dot.Size = UDim2.new(0, 14, 0, 14)
     Dot.Position = CONFIG[key] and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-    Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    Dot.BorderSizePixel = 0
-    Dot.Parent = Switch
+    Dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Dot.BorderSizePixel = 0
+    Dot.Parent = Sw
     Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
-
     Btn.MouseButton1Click:Connect(function()
         CONFIG[key] = not CONFIG[key]
         local on = CONFIG[key]
-        TweenService:Create(Dot, TweenInfo.new(0.2), {
-            Position = on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        }):Play()
-        TweenService:Create(Switch, TweenInfo.new(0.2), {
-            BackgroundColor3 = on and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(50, 50, 65)
-        }):Play()
-        TweenService:Create(Indicator, TweenInfo.new(0.2), {
-            BackgroundColor3 = on and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(80, 80, 100)
-        }):Play()
-
-        -- Special handlers
-        if key == "AutoSteal" then
-            if on then startFly() else if not CONFIG.AutoGrab then stopFly() end end
-        end
-        if key == "AutoGrab" then
-            if on then startFly() else if not CONFIG.AutoSteal then stopFly() end end
-        end
+        TweenService:Create(Dot, TweenInfo.new(0.2), {Position = on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
+        TweenService:Create(Sw, TweenInfo.new(0.2), {BackgroundColor3 = on and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(50, 50, 65)}):Play()
+        TweenService:Create(Ind, TweenInfo.new(0.2), {BackgroundColor3 = on and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(80, 80, 100)}):Play()
     end)
-
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(38, 38, 50) }):Play()
-    end)
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(28, 28, 36) }):Play()
-    end)
-
-    return Btn
 end
-
--- ============================================
--- ESP SUBMENU
--- ============================================
-local espExpanded = false
-local espSubFrame
 
 local function makeESPButton()
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, -8, 0, 46)
     Btn.BackgroundColor3 = Color3.fromRGB(35, 25, 50)
-    Btn.Text = ""
-    Btn.BorderSizePixel = 0
-    Btn.AutoButtonColor = false
+    Btn.Text = ""; Btn.BorderSizePixel = 0; Btn.AutoButtonColor = false
     Btn.Parent = Content
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
-
     local Arrow = Instance.new("TextLabel")
-    Arrow.Size = UDim2.new(0, 20, 0, 46)
-    Arrow.Position = UDim2.new(1, -30, 0, 0)
-    Arrow.BackgroundTransparency = 1
-    Arrow.Text = "▶"
-    Arrow.TextColor3 = Color3.fromRGB(200, 200, 220)
-    Arrow.TextSize = 14
-    Arrow.Font = Enum.Font.GothamBold
-    Arrow.Parent = Btn
-
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -60, 0, 20)
-    Label.Position = UDim2.new(0, 16, 0, 6)
-    Label.BackgroundTransparency = 1
-    Label.Text = "ESP"
-    Label.TextColor3 = Color3.fromRGB(240, 240, 250)
-    Label.TextSize = 15
-    Label.Font = Enum.Font.GothamBold
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Btn
-
-    local Desc = Instance.new("TextLabel")
-    Desc.Size = UDim2.new(1, -60, 0, 14)
-    Desc.Position = UDim2.new(0, 16, 0, 26)
-    Desc.BackgroundTransparency = 1
-    Desc.Text = "Egg / Player / Best"
-    Desc.TextColor3 = Color3.fromRGB(150, 130, 180)
-    Desc.TextSize = 10
-    Desc.Font = Enum.Font.Gotham
-    Desc.TextXAlignment = Enum.TextXAlignment.Left
-    Desc.Parent = Btn
-
-    -- Submenu frame
-    espSubFrame = Instance.new("Frame")
-    espSubFrame.Size = UDim2.new(1, -8, 0, 0)
-    espSubFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
-    espSubFrame.BorderSizePixel = 0
-    espSubFrame.ClipsDescendants = true
-    espSubFrame.Parent = Content
-    Instance.new("UICorner", espSubFrame).CornerRadius = UDim.new(0, 8)
-
+    Arrow.Size = UDim2.new(0, 20, 0, 46); Arrow.Position = UDim2.new(1, -30, 0, 0)
+    Arrow.BackgroundTransparency = 1; Arrow.Text = "▶"
+    Arrow.TextColor3 = Color3.fromRGB(200, 200, 220); Arrow.TextSize = 14
+    Arrow.Font = Enum.Font.GothamBold; Arrow.Parent = Btn
+    local L = Instance.new("TextLabel")
+    L.Size = UDim2.new(1, -60, 0, 20); L.Position = UDim2.new(0, 16, 0, 6)
+    L.BackgroundTransparency = 1; L.Text = "ESP"
+    L.TextColor3 = Color3.fromRGB(240, 240, 250); L.TextSize = 15
+    L.Font = Enum.Font.GothamBold; L.TextXAlignment = Enum.TextXAlignment.Left
+    L.Parent = Btn
+    local D = Instance.new("TextLabel")
+    D.Size = UDim2.new(1, -60, 0, 14); D.Position = UDim2.new(0, 16, 0, 26)
+    D.BackgroundTransparency = 1; D.Text = "Egg / Player / Best"
+    D.TextColor3 = Color3.fromRGB(150, 130, 180); D.TextSize = 10
+    D.Font = Enum.Font.Gotham; D.TextXAlignment = Enum.TextXAlignment.Left
+    D.Parent = Btn
+    local SubFrame = Instance.new("Frame")
+    SubFrame.Size = UDim2.new(1, -8, 0, 0)
+    SubFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+    SubFrame.BorderSizePixel = 0; SubFrame.ClipsDescendants = true
+    SubFrame.Parent = Content
+    Instance.new("UICorner", SubFrame).CornerRadius = UDim.new(0, 8)
     local SubLayout = Instance.new("UIListLayout")
     SubLayout.SortOrder = Enum.SortOrder.LayoutOrder
     SubLayout.Padding = UDim.new(0, 4)
-    SubLayout.Parent = espSubFrame
-
+    SubLayout.Parent = SubFrame
     local SubPad = Instance.new("UIPadding")
-    SubPad.PaddingTop = UDim.new(0, 6)
-    SubPad.PaddingBottom = UDim.new(0, 6)
-    SubPad.PaddingLeft = UDim.new(0, 8)
-    SubPad.PaddingRight = UDim.new(0, 8)
-    SubPad.Parent = espSubFrame
-
-    -- Sub toggles (smaller)
+    SubPad.PaddingTop = UDim.new(0, 6); SubPad.PaddingBottom = UDim.new(0, 6)
+    SubPad.PaddingLeft = UDim.new(0, 8); SubPad.PaddingRight = UDim.new(0, 8)
+    SubPad.Parent = SubFrame
     local function subToggle(text, key)
         local S = Instance.new("TextButton")
         S.Size = UDim2.new(1, -8, 0, 32)
         S.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-        S.Text = ""
-        S.BorderSizePixel = 0
-        S.AutoButtonColor = false
-        S.Parent = espSubFrame
+        S.Text = ""; S.BorderSizePixel = 0; S.AutoButtonColor = false
+        S.Parent = SubFrame
         Instance.new("UICorner", S).CornerRadius = UDim.new(0, 6)
+        local SL = Instance.new("TextLabel")
+        SL.Size = UDim2.new(1, -50, 1, 0); SL.Position = UDim2.new(0, 12, 0, 0)
+        SL.BackgroundTransparency = 1; SL.Text = text
+        SL.TextColor3 = Color3.fromRGB(230, 230, 240); SL.TextSize = 12
+        SL.Font = Enum.Font.GothamMedium; SL.TextXAlignment = Enum.TextXAlignment.Left
+        SL.Parent = S
+        local SD = Instance.new("Frame")
+        SD.Size = UDim2.new(0, 14, 0, 14); SD.Position = UDim2.new(1, -22, 0.5, -7)
+        SD.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(60, 60, 80)
+        SD.BorderSizePixel = 0; SD.Parent = S
+        Instance.new("UICorner", SD).CornerRadius = UDim.new(1, 0)
+        S.MouseButton1Click:Connect(function()
+            CONFIG[key] = not CONFIG[key]
+            TweenService:Create(SD, TweenInfo.new(0.2), {
+                BackgroundColor3 = CONFIG[key] and Color3.fromRGB(80, 255, 140) or Color3.fromRGB(60, 60, 80)
+            }):Play()
+        end)
+    end
+    subToggle("Egg ESP", "EggESP")
+    subToggle("Player ESP", "PlayerESP")
+    subToggle("Best Egg ESP", "BestEggESP")
+    local expanded = false
+    Btn.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        TweenService:Create(SubFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = expanded and UDim2.new(1, -8, 0, 112) or UDim2.new(1, -8, 0, 0)
+        }):Play()
+        Arrow.Text = expanded and "▼" or "▶"
+    end)
+end
 
-        local L = Instance.new("TextLabel")
-        L.Size = UDim2.new(1, -50, 1, 0)
-        L.Position = UDim2.new(0, 12, 0, 0)
-        L.BackgroundTransparency = 1
-        L.Text = text
-        L.TextColor3 = Color3.fromRGB(230, 230, 240)
-        L.TextSize = 12
-        L.Font = Enum.Font.GothamMedium
-        L.TextXAlignment = Enum.TextXAlignment.Left
-        
+makeESPButton()
+makeToggle("Auto Steal", "AutoSteal", "Ұшып яйцоға барып ұрлайды")
+makeToggle("Auto Grab", "AutoGrab", "0.5с яйцо алып базаға қайтады")
+makeToggle("Speed Hack", "SpeedHack", "Ұшу жылдамдығын арттырады")
+makeToggle("Anti-Ban", "AntiBan", "Античиттен қорғаныс")
+makeToggle("Rainbow Mode", "Rainbow", "Түс өзгерту")
+
+local dragging, dragStart, startPos
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = minimized and UDim2.new(0, 300, 0, 42) or UDim2.new(0, 300, 0, 400)
+    }):Play()
+    MinBtn.Text = minimized and "+" or "—"
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    }):Play()
+    task.wait(0.3)
+    ScreenGui:Destroy()
+end)
+
+Main.Size = UDim2.new(0, 0, 0, 0)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+TweenService:Create(Main, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size = UDim2.new(0, 300, 0, 400),
+    Position = UDim2.new(0.5, -150, 0.5, -200)
+}):Play()
+
+task.spawn(function()
+    while ScreenGui.Parent do
+        if CONFIG.Rainbow then
+            Stroke.Color = getRainbow()
+            TitleText.TextColor3 = getRainbow()
+        else
+            Stroke.Color = Color3.fromRGB(255, 100, 200)
+            TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+        task.wait(0.05)
+    end
+end)
+
+print("[StealAEgg v4] Loaded.")
